@@ -1,0 +1,8 @@
+.idea
+.vertx
+target
+*.iml
+**/*.idea
+**/*.iml
+**/*.vertx
+**/config.json
