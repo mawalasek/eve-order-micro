@@ -20,12 +20,15 @@ public class OrderVerticle extends AbstractVerticle {
         Router router = Router.router(vertx);
 
         router.route("/orders").handler(routingContext -> {
+            HttpServerResponse response = routingContext.response();
+            response.exceptionHandler(routingContext::fail);
+
             mongoClient.find("order", new JsonObject(), results -> {
-                List<JsonObject> jsonOrders = results.result();
-                routingContext.response().putHeader("content-type", "application/json")
-                        .end(Json.encodePrettily(jsonOrders));
+                    List<JsonObject> jsonOrders = results.result();
+                    response.putHeader("content-type", "application/json")
+                            .end(Json.encodePrettily(jsonOrders));
+                });
             });
-        });
 
         vertx.createHttpServer()
                 .requestHandler(router::accept)
