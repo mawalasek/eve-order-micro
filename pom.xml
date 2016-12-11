@@ -7,23 +7,36 @@
   <artifactId>eve-vertx-micro</artifactId>
   <version>1.0-SNAPSHOT</version>
 
+  <properties>
+    <vertxstack.version>3.3.3</vertxstack.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.vertx</groupId>
+        <artifactId>vertx-dependencies</artifactId>
+        <version>${vertxstack.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-core</artifactId>
-      <version>3.0.0</version>
     </dependency>
 
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-web</artifactId>
-      <version>3.0.0</version>
     </dependency>
 
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-mongo-client</artifactId>
-      <version>3.1.0</version>
     </dependency>
 
     <dependency>
@@ -36,7 +49,6 @@
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-unit</artifactId>
-      <version>3.0.0</version>
       <scope>test</scope>
     </dependency>
 
@@ -95,7 +107,7 @@
                 <transformer
                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <manifestEntries>
-                    <Main-Class>io.vertx.core.Starter</Main-Class>
+                    <Main-Class>de.bahr.ConfigReadingLauncher</Main-Class>
                     <Main-Verticle>de.bahr.OrderVerticle</Main-Verticle>
                   </manifestEntries>
                 </transformer>
