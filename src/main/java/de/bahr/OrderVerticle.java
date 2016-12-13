@@ -7,14 +7,22 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.MongoClient;
 import io.vertx.ext.web.Router;
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.Logger;
 
 import java.util.List;
 
 public class OrderVerticle extends AbstractVerticle {
 
+    private Logger logger;
+
     @Override
     public void start(Future<Void> future) {
 
+        BasicConfigurator.configure();
+        logger = Logger.getLogger(this.getClass().getName());
+
+        logger.debug("Initialising Mongo client. Config: " + config());
         MongoClient mongoClient = MongoClient.createShared(vertx, config());
 
         Router router = Router.router(vertx);
