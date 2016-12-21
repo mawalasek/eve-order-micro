@@ -49,7 +49,7 @@ public class OrderVerticle extends AbstractVerticle {
     private void initRouter() {
         router = Router.router(vertx);
         router.get("/orders").handler(this::handleGetAllOrders);
-        router.get("/orders/month/:year/:month/:client").handler(this::handleGetMonthlyAggregatePrice);
+        router.get("/orders/month/:year/:month").handler(this::handleGetMonthlyValue);
     }
 
     private void handleGetAllOrders(RoutingContext routingContext) {
@@ -63,35 +63,45 @@ public class OrderVerticle extends AbstractVerticle {
         });
     }
 
-    private void handleGetMonthlyAggregatePrice(RoutingContext routingContext) {
-        String client = routingContext.request().getParam("client");
-        int year = Integer.valueOf(routingContext.request().getParam("year"));
-        int month = Integer.valueOf(routingContext.request().getParam("month"));
-
+    private void handleGetMonthlyValue(RoutingContext routingContext) {
         HttpServerResponse response = routingContext.response();
         response.exceptionHandler(routingContext::fail);
 
-        getMonthlyAggregatePriceFromDb(client, year, month, as -> {
+        getMonthlyValueFromDb(routingContext, as -> {
             response.putHeader("content-type", "application/json")
                     .end(Json.encodePrettily(as.result()));
         });
     }
 
-    private void getMonthlyAggregatePriceFromDb(String client, int year, int month, Handler<AsyncResult<Integer>> handler) {
+    private void getMonthlyValueFromDb(RoutingContext routingContext, Handler<AsyncResult<Long>> handler) {
+        int year = Integer.valueOf(routingContext.request().getParam("year"));
+        int month = Integer.valueOf(routingContext.request().getParam("month"));
+
+        JsonObject query = getMonthlyValueDbQuery(routingContext);
+
+        mongoClient.find("order", query, results -> {
+            List<JsonObject> orders = results.result();
+            long sum = orders.stream()
+                    .filter(order -> orderCompletedDateMatches(order, year, month))
+                    .mapToLong(this::getOrderExpectedPrice)
+                    .sum();
+            handler.handle(Future.succeededFuture(sum));
+        });
+    }
+
+    private JsonObject getMonthlyValueDbQuery(RoutingContext routingContext) {
+        String client = routingContext.request().getParam("client");
+        String assignee = routingContext.request().getParam("assignee");
+
         JsonObject query = new JsonObject()
-                .put("client", client)
                 .put("status", "contracted")
                 .put("expectedPrice", new JsonObject().put("$gt", 0))
                 .put("completed", new JsonObject().put("$exists", true));
 
-        mongoClient.find("order", query, results -> {
-            List<JsonObject> orders = results.result();
-            int sum = orders.stream()
-                    .filter(order -> orderCompletedDateMatches(order, year, month))
-                    .mapToInt(this::getOrderExpectedPrice)
-                    .sum();
-            handler.handle(Future.succeededFuture(sum));
-        });
+        if (client != null) query.put("client", client);
+        if (assignee != null) query.put("assignee", assignee);
+
+        return query;
     }
 
     private boolean orderCompletedDateMatches(JsonObject order, int year, int month) {
@@ -108,8 +118,8 @@ public class OrderVerticle extends AbstractVerticle {
         }
     }
 
-    private int getOrderExpectedPrice(JsonObject order) {
-        return order.getInteger("expectedPrice");
+    private long getOrderExpectedPrice(JsonObject order) {
+        return order.getLong("expectedPrice");
     }
 
     private void initHttpServer(Future<Void> future) {
