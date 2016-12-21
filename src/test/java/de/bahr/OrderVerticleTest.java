@@ -143,68 +143,125 @@ public class OrderVerticleTest {
     }
 
     @Test
-    public void testGetMonthlyValue(TestContext testContext) {
+    public void testGetMonthlyValueByClient(TestContext testContext) {
         final Async async = testContext.async();
 
-        Map<JsonObject, Future> ordersAndFutures = new HashMap<>();
-
-        ordersAndFutures.put(new JsonObject()
-                .put("client", "John Doe")
-                .put("status", "contracted")
-                .put("expectedPrice", 123)
-                .put("completed", new JsonObject().put("$date", "2016-08-30T23:59:59.999Z")),
-                Future.future());
-
-        ordersAndFutures.put(new JsonObject()
-                .put("client", "John Doe")
-                .put("status", "contracted")
-                .put("expectedPrice", 456)
-                .put("completed", new JsonObject().put("$date", "2016-08-01T00:00:00.000Z")),
-                Future.future());
-
-        ordersAndFutures.put(new JsonObject()
-                .put("client", "John Doe")
-                .put("status", "contracted")
-                .put("expectedPrice", 789)
-                .put("completed", new JsonObject().put("$date", "2016-07-31T23:59:59.999Z")),
-                Future.future());
-
-        ordersAndFutures.put(new JsonObject()
-                .put("client", "John Doe")
-                .put("status", "contracted")
-                .put("expectedPrice", 456),
-                Future.future());
-
-        ordersAndFutures.put(new JsonObject()
-                .put("client", "Alice Doe")
-                .put("status", "contracted")
-                .put("expectedPrice", 789)
-                .put("completed", new JsonObject().put("$date", "2016-08-15T23:59:59.999Z")),
-                Future.future());
-
-        ordersAndFutures.put(new JsonObject()
-                .put("client", "John Doe")
-                .put("status", "not_contracted")
-                .put("expectedPrice", 789)
-                .put("completed", new JsonObject().put("$date", "2016-08-15T23:59:59.999Z")),
-                Future.future());
-
-        ordersAndFutures.put(new JsonObject()
-                .put("client", "John Doe")
-                .put("status", "contracted")
-                .put("expectedPrice", 0)
-                .put("completed", new JsonObject().put("$date", "2016-08-15T23:59:59.999Z")),
-                Future.future());
-
-        ordersAndFutures.keySet().stream()
-                .forEach(order -> mongoClient.insert(ORDERS, order, ordersAndFutures.get(order).completer()));
+        Map<JsonObject, Future> ordersAndFutures = createAndInsertMonthlyValueTestData();
 
         CompositeFuture.all(ordersAndFutures.values().stream().collect(Collectors.toList())).setHandler(event ->
-            vertx.createHttpClient().getNow(VERTICLE_PORT, "localhost", "/orders/month/2016/8/John%20Doe", response -> {
+            vertx.createHttpClient().getNow(VERTICLE_PORT, "localhost", "/orders/month/2016/8?client=John%20Doe", response -> {
                         testContext.assertTrue(response.statusCode() == 200);
                         response.bodyHandler(body -> testContext.assertEquals(body.toString(), "579"));
                         async.complete();
                     })
         );
+    }
+
+    @Test
+    public void testGetMonthlyValueByAssignee(TestContext testContext) {
+        final Async async = testContext.async();
+
+        Map<JsonObject, Future> ordersAndFutures = createAndInsertMonthlyValueTestData();
+
+        CompositeFuture.all(ordersAndFutures.values().stream().collect(Collectors.toList())).setHandler(event ->
+            vertx.createHttpClient().getNow(VERTICLE_PORT, "localhost", "/orders/month/2016/8?assignee=service", response -> {
+                        testContext.assertTrue(response.statusCode() == 200);
+                        response.bodyHandler(body -> testContext.assertEquals(body.toString(), "912"));
+                        async.complete();
+                    })
+        );
+    }
+
+    @Test
+    public void testGetMonthlyValueByAssigneeAndClient(TestContext testContext) {
+        final Async async = testContext.async();
+
+        Map<JsonObject, Future> ordersAndFutures = createAndInsertMonthlyValueTestData();
+
+        CompositeFuture.all(ordersAndFutures.values().stream().collect(Collectors.toList())).setHandler(event ->
+                vertx.createHttpClient().getNow(VERTICLE_PORT, "localhost", "/orders/month/2016/8?assignee=service&client=John%20Doe", response -> {
+                    testContext.assertTrue(response.statusCode() == 200);
+                    response.bodyHandler(body -> testContext.assertEquals(body.toString(), "123"));
+                    async.complete();
+                })
+        );
+    }
+
+    @Test
+    public void testGetMonthlyValueAll(TestContext testContext) {
+        final Async async = testContext.async();
+
+        Map<JsonObject, Future> ordersAndFutures = createAndInsertMonthlyValueTestData();
+
+        CompositeFuture.all(ordersAndFutures.values().stream().collect(Collectors.toList())).setHandler(event ->
+                vertx.createHttpClient().getNow(VERTICLE_PORT, "localhost", "/orders/month/2016/8", response -> {
+                    testContext.assertTrue(response.statusCode() == 200);
+                    response.bodyHandler(body -> testContext.assertEquals(body.toString(), "1368"));
+                    async.complete();
+                })
+        );
+    }
+
+    private Map<JsonObject,Future> createAndInsertMonthlyValueTestData() {
+        Map<JsonObject, Future> ordersAndFutures = new HashMap<>();
+
+        ordersAndFutures.put(new JsonObject()
+                        .put("client", "John Doe")
+                        .put("assignee", "service")
+                        .put("status", "contracted")
+                        .put("expectedPrice", 123)
+                        .put("completed", new JsonObject().put("$date", "2016-08-30T23:59:59.999Z")),
+                Future.future());
+
+        ordersAndFutures.put(new JsonObject()
+                        .put("client", "John Doe")
+                        .put("status", "contracted")
+                        .put("expectedPrice", 456)
+                        .put("completed", new JsonObject().put("$date", "2016-08-01T00:00:00.000Z")),
+                Future.future());
+
+        ordersAndFutures.put(new JsonObject()
+                        .put("client", "John Doe")
+                        .put("assignee", "service")
+                        .put("status", "contracted")
+                        .put("expectedPrice", 789)
+                        .put("completed", new JsonObject().put("$date", "2016-07-31T23:59:59.999Z")),
+                Future.future());
+
+        ordersAndFutures.put(new JsonObject()
+                        .put("client", "John Doe")
+                        .put("assignee", "service")
+                        .put("status", "contracted")
+                        .put("expectedPrice", 456),
+                Future.future());
+
+        ordersAndFutures.put(new JsonObject()
+                        .put("client", "Alice Doe")
+                        .put("assignee", "service")
+                        .put("status", "contracted")
+                        .put("expectedPrice", 789)
+                        .put("completed", new JsonObject().put("$date", "2016-08-30T23:59:59.999Z")),
+                Future.future());
+
+        ordersAndFutures.put(new JsonObject()
+                        .put("client", "John Doe")
+                        .put("assignee", "service")
+                        .put("status", "not_contracted")
+                        .put("expectedPrice", 789)
+                        .put("completed", new JsonObject().put("$date", "2016-08-30T23:59:59.999Z")),
+                Future.future());
+
+        ordersAndFutures.put(new JsonObject()
+                        .put("client", "John Doe")
+                        .put("assignee", "service")
+                        .put("status", "contracted")
+                        .put("expectedPrice", 0)
+                        .put("completed", new JsonObject().put("$date", "2016-08-30T23:59:59.999Z")),
+                Future.future());
+
+        ordersAndFutures.keySet().stream()
+                .forEach(order -> mongoClient.insert(ORDERS, order, ordersAndFutures.get(order).completer()));
+
+        return ordersAndFutures;
     }
 }
