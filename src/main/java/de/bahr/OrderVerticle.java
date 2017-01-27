@@ -13,12 +13,9 @@ import io.vertx.ext.web.RoutingContext;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 public class OrderVerticle extends AbstractVerticle {
@@ -49,7 +46,7 @@ public class OrderVerticle extends AbstractVerticle {
     private void initRouter() {
         router = Router.router(vertx);
         router.get("/orders").handler(this::handleGetAllOrders);
-        router.get("/orders/month/:year/:month/:client").handler(this::handleGetMonthlyAggregatePrice);
+        router.get("/orders/month/:year/:month").handler(this::handleGetMonthlyValue);
     }
 
     private void handleGetAllOrders(RoutingContext routingContext) {
@@ -63,53 +60,61 @@ public class OrderVerticle extends AbstractVerticle {
         });
     }
 
-    private void handleGetMonthlyAggregatePrice(RoutingContext routingContext) {
-        String client = routingContext.request().getParam("client");
-        int year = Integer.valueOf(routingContext.request().getParam("year"));
-        int month = Integer.valueOf(routingContext.request().getParam("month"));
-
+    private void handleGetMonthlyValue(RoutingContext routingContext) {
         HttpServerResponse response = routingContext.response();
         response.exceptionHandler(routingContext::fail);
 
-        getMonthlyAggregatePriceFromDb(client, year, month, as -> {
+        getMonthlyValueFromDb(routingContext, as -> {
             response.putHeader("content-type", "application/json")
                     .end(Json.encodePrettily(as.result()));
         });
     }
 
-    private void getMonthlyAggregatePriceFromDb(String client, int year, int month, Handler<AsyncResult<Integer>> handler) {
-        JsonObject query = new JsonObject()
-                .put("client", client)
-                .put("status", "contracted")
-                .put("expectedPrice", new JsonObject().put("$gt", 0))
-                .put("completed", new JsonObject().put("$exists", true));
+    private void getMonthlyValueFromDb(RoutingContext routingContext, Handler<AsyncResult<Long>> handler) {
+        int year = Integer.valueOf(routingContext.request().getParam("year"));
+        int month = Integer.valueOf(routingContext.request().getParam("month"));
+
+        JsonObject query = getMonthlyValueDbQuery(routingContext);
 
         mongoClient.find("order", query, results -> {
             List<JsonObject> orders = results.result();
-            int sum = orders.stream()
+            long sum = orders.stream()
                     .filter(order -> orderCompletedDateMatches(order, year, month))
-                    .mapToInt(this::getOrderExpectedPrice)
+                    .mapToLong(this::getOrderExpectedPrice)
                     .sum();
             handler.handle(Future.succeededFuture(sum));
         });
     }
 
+    private JsonObject getMonthlyValueDbQuery(RoutingContext routingContext) {
+        String client = routingContext.request().getParam("client");
+        String assignee = routingContext.request().getParam("assignee");
+
+        JsonObject query = new JsonObject()
+                .put("status", "contracted")
+                .put("expectedPrice", new JsonObject().put("$gt", 0))
+                .put("completed", new JsonObject().put("$exists", true));
+
+        if (client != null) query.put("client", client);
+        if (assignee != null) query.put("assignee", assignee);
+
+        return query;
+    }
+
     private boolean orderCompletedDateMatches(JsonObject order, int year, int month) {
-        String dateStr = order.getJsonObject("completed").getString("$date");
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-        Calendar cal = new GregorianCalendar();
+        String rawDateStr = order.getJsonObject("completed").getString("$date");
+        String dateStr = rawDateStr.substring(0, rawDateStr.indexOf('T'));
         try {
-            Date date = df.parse(dateStr);
-            cal.setTime(date);
-            return cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) +1 == month;
-        } catch (ParseException e) {
+            LocalDate date1 = LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            return date1.getYear() == year && date1.getMonthValue() == month;
+        } catch (DateTimeParseException e) {
             logger.error("Could not parse date string: " + dateStr);
             return false;
         }
     }
 
-    private int getOrderExpectedPrice(JsonObject order) {
-        return order.getInteger("expectedPrice");
+    private long getOrderExpectedPrice(JsonObject order) {
+        return order.getLong("expectedPrice");
     }
 
     private void initHttpServer(Future<Void> future) {
