@@ -13,12 +13,9 @@ import io.vertx.ext.web.RoutingContext;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 public class OrderVerticle extends AbstractVerticle {
@@ -105,14 +102,12 @@ public class OrderVerticle extends AbstractVerticle {
     }
 
     private boolean orderCompletedDateMatches(JsonObject order, int year, int month) {
-        String dateStr = order.getJsonObject("completed").getString("$date");
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-        Calendar cal = new GregorianCalendar();
+        String rawDateStr = order.getJsonObject("completed").getString("$date");
+        String dateStr = rawDateStr.substring(0, rawDateStr.indexOf('T'));
         try {
-            Date date = df.parse(dateStr);
-            cal.setTime(date);
-            return cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) +1 == month;
-        } catch (ParseException e) {
+            LocalDate date1 = LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            return date1.getYear() == year && date1.getMonthValue() == month;
+        } catch (DateTimeParseException e) {
             logger.error("Could not parse date string: " + dateStr);
             return false;
         }
